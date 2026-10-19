@@ -45,14 +45,14 @@ export const THEORY_EN = {
     "explanation": "Resources include not only the CPU, RAM, and disks, but also I/O devices, network devices, and peripherals. The other options list only some resources."
   },
   "intro-005": {
-    "prompt": "According to the lecture, who can directly use a bare computer and its resources?",
+    "prompt": "Can we directly use a bare computer and its resources?",
     "options": [
       "Any ordinary user.",
       "Almost no one.",
-      "All software developers.",
-      "Only some system programmers with the appropriate knowledge."
+      "Software developers.",
+      "Yes, only some system programmers can do so."
     ],
-    "explanation": "The slides emphasize that controlling hardware directly requires system programming knowledge. The OS provides an intermediary layer that makes resources more convenient for users and applications to use."
+    "explanation": "In the review of Quiz 1, question 5, B, ‘Almost no one,’ is marked correct for 1/1 point. The question emphasizes the OS’s role in making hardware and resources convenient for users to access. Experts can still program hardware directly; that is a separate technical case."
   },
   "intro-006": {
     "prompt": "Among the following choices, what type of operating system is Windows?",

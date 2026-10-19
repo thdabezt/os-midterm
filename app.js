@@ -1,9 +1,9 @@
-import { THEORY_QUESTIONS } from './data/theory.js';
+import { THEORY_QUESTIONS } from './data/theory.js?v=1.1.1';
 import { SCHEDULING_QUESTIONS, CALCULATION_PRESETS } from './data/scheduling.js';
 import { schedule, generateExercise } from './scheduler.js';
 import { TOPICS, ALGORITHMS, NUMERIC_EXERCISES, numericCorrect, formatNumber as fmt, shuffle } from './practice.js';
 import { LESSONS } from './data/lessons.js';
-import { initLanguage, registerTranslation, translateText } from './i18n.js?v=1.1.0';
+import { initLanguage, registerTranslation, translateText } from './i18n.js?v=1.1.1';
 
 const bank = [...THEORY_QUESTIONS,...SCHEDULING_QUESTIONS];
 const $ = (selector) => document.querySelector(selector);
@@ -11,9 +11,9 @@ const main = $('#main');
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const bi = (vi,en) => {registerTranslation(vi,en);return esc(vi);};
 const KEY = 'os-studyroom-v1';
-const fresh = () => ({answers:{},bookmarks:[],calc:{attempts:0,correct:0},exams:[],session:null});
+const fresh = () => ({answers:{},bookmarks:[],calc:{attempts:0,correct:0},exams:[],session:null,answerKeyRevision:1});
 let state;
-try { state = {...fresh(),...JSON.parse(localStorage.getItem(KEY) || 'null')}; } catch { state = fresh(); }
+try { const stored=JSON.parse(localStorage.getItem(KEY) || 'null');state={...fresh(),...stored,answerKeyRevision:stored?.answerKeyRevision||0}; } catch { state = fresh(); }
 if (!state.answers || !Array.isArray(state.bookmarks) || !state.calc || !Array.isArray(state.exams)) state=fresh();
 let session = state.session;
 if (session && (!Array.isArray(session.items) || !session.items.length || !Number.isInteger(session.index) || !['practice','exam'].includes(session.mode))) session=null;
@@ -233,5 +233,20 @@ document.addEventListener('keydown',event=>{
 });
 window.addEventListener('hashchange',()=>{render();window.scrollTo(0,0);});
 setInterval(tick,1000);
+if(state.answerKeyRevision<1) {
+  // Older records lack the selected option. Regrade a retained answer when
+  // available; otherwise discard only this question's obsolete correctness.
+  const previous=state.answers['intro-005'];
+  const retained=session?.items.find(item=>item.kind==='theory'&&item.id==='intro-005'&&item.checked);
+  delete state.answers['intro-005'];
+  if(previous&&retained)state.answers['intro-005']={...previous,correct:!!itemScore(retained)};
+  if(retained&&session.mode==='exam'&&session.finished) {
+    const oldScore=session.score;
+    session.score=Number(session.items.reduce((sum,item)=>sum+itemScore(item),0).toFixed(2));
+    const latest=state.exams.at(-1);
+    if(latest&&latest.date>=session.startedAt&&latest.score===oldScore&&latest.total===session.items.length)latest.score=session.score;
+  }
+  state.answerKeyRevision=1;save();
+}
 render();
 initLanguage();

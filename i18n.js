@@ -1,7 +1,7 @@
-import { THEORY_QUESTIONS } from './data/theory.js';
+import { THEORY_QUESTIONS } from './data/theory.js?v=1.1.1';
 import { SCHEDULING_QUESTIONS, CALCULATION_PRESETS } from './data/scheduling.js';
 import { NUMERIC_EXERCISES } from './practice.js';
-import { THEORY_EN } from './data/theory.en.js';
+import { THEORY_EN } from './data/theory.en.js?v=1.1.1';
 import { SCHEDULING_EN, PRESETS_EN } from './data/scheduling.en.js';
 import { NUMERIC_EN } from './data/numeric.en.js';
 import { LESSONS } from './data/lessons.js';

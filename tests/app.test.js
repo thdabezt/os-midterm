@@ -115,6 +115,59 @@ function boot({ storage = new Map(), now = INITIAL_NOW, hash = '#home' } = {}) {
   };
 }
 
+test('answer-key update removes only the obsolete result when its selected answer is unavailable', async () => {
+  const unaffected={correct:true,attempts:3,date:INITIAL_NOW-2000};
+  const legacy={
+    answers:{'intro-005':{correct:false,attempts:2,date:INITIAL_NOW-1000},'intro-001':unaffected},
+    bookmarks:['intro-005','intro-001'],calc:{attempts:4,correct:3},
+    exams:[{date:INITIAL_NOW-3000,score:7,total:10}],session:null,
+  };
+  const storage=new Map([[STORAGE_KEY,JSON.stringify(legacy)]]);
+  const view=boot({storage});
+  assert.equal(view.app.state.answers['intro-005'],undefined);
+  assert.deepEqual(view.saved().answers,{'intro-001':unaffected});
+  assert.deepEqual(view.saved().bookmarks,legacy.bookmarks);
+  assert.deepEqual(view.saved().calc,legacy.calc);
+  assert.deepEqual(view.saved().exams,legacy.exams);
+  assert.equal(view.saved().answerKeyRevision,1);
+
+  await view.app.begin([view.app.theoryItem(THEORY_QUESTIONS.find(q=>q.id==='intro-005'))]);
+  await view.click('select-option',{index:'1'});
+  await view.click('check');
+  const reloaded=boot({storage});
+  assert.equal(reloaded.app.state.answers['intro-005'].correct,true);
+  assert.equal(reloaded.app.state.answers['intro-005'].attempts,1,'migration must run only once');
+});
+
+for(const selection of [1,3])test(`answer-key update regrades retained choice ${selection} without adding an attempt`,()=>{
+  const legacy={
+    answers:{'intro-005':{correct:selection===3,attempts:2,date:INITIAL_NOW-1000}},
+    session:{mode:'practice',items:[{id:'intro-005',kind:'theory',selection,checked:true,recorded:true}],index:0,finished:false,startedAt:INITIAL_NOW-2000},
+  };
+  const view=boot({storage:new Map([[STORAGE_KEY,JSON.stringify(legacy)]]),hash:'#session'});
+  assert.equal(view.app.state.answers['intro-005'].correct,selection===1);
+  assert.equal(view.app.state.answers['intro-005'].attempts,2);
+  assert.equal(view.app.state.answers['intro-005'].date,INITIAL_NOW-1000);
+  assert.equal(view.app.session.items[0].selection,selection);
+  assert.equal(view.app.session.items[0].checked,true);
+  assert.equal(view.reviewCount.textContent,selection===1?0:1);
+});
+
+for(const selection of [1,3])test(`answer-key update adjusts a retained finished exam for choice ${selection}`,()=>{
+  const oldScore=selection===3?1:0;
+  const legacy={
+    answers:{'intro-005':{correct:selection===3,attempts:1,date:INITIAL_NOW-1000}},
+    session:{mode:'exam',items:[{id:'intro-005',kind:'theory',selection,checked:true,recorded:true}],index:0,finished:true,score:oldScore,startedAt:INITIAL_NOW-2000},
+    exams:[{date:INITIAL_NOW-5000,score:oldScore,total:1},{date:INITIAL_NOW-1000,score:oldScore,total:1}],
+  };
+  const view=boot({storage:new Map([[STORAGE_KEY,JSON.stringify(legacy)]]),hash:'#session'});
+  assert.equal(view.app.session.score,selection===1?1:0);
+  assert.equal(view.app.state.exams[1].score,view.app.session.score);
+  assert.deepEqual(view.saved().exams[0],legacy.exams[0],'unrecoverable earlier history stays intact');
+  assert.equal(view.app.state.answers['intro-005'].attempts,1);
+  assert.equal(boot({storage:view.storage}).app.session.score,view.app.session.score);
+});
+
 test('real app records correct and wrong theory answers once and allows a later successful retry', async () => {
   const view = boot();
   const [first, second] = THEORY_QUESTIONS;

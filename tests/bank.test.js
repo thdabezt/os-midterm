@@ -5,6 +5,24 @@ import {SCHEDULING_QUESTIONS,CALCULATION_PRESETS} from '../data/scheduling.js';
 import {TOPICS} from '../practice.js';
 import {schedule} from '../scheduler.js';
 
+test('Recovered theory keys match answers visibly awarded 1/1 in the original quiz reviews',()=>{
+  // Independently checked against the selected radios and scores in the Intro,
+  // Process and IPC PDFs. Process Q6 scored 0/1 and remains unrecoverable.
+  const markedAnswers={
+    'intro-001':1,'intro-002':2,'intro-003':4,'intro-004':0,
+    'intro-005':1,'intro-006':1,'intro-007':3,'intro-008':1,
+    'process-001':3,'process-002':2,'process-003':2,'process-004':1,
+    'process-005':3,'process-006':0,'process-007':2,'process-008':1,'process-009':3,
+    'ipc-001':0,'ipc-002':2,
+  };
+  const actual=THEORY_QUESTIONS.filter(q=>q.origin==='actual');
+  assert.equal(actual.length,Object.keys(markedAnswers).length);
+  for(const q of actual)assert.equal(q.answer,markedAnswers[q.id],q.id);
+  const original=actual.find(q=>q.id==='intro-005');
+  assert.equal(original.prompt,'Chúng ta có thể sử dụng trực tiếp một máy tính thuần túy và các tài nguyên của nó không?');
+  assert.equal(original.options[original.answer],'Hầu như không có ai.');
+});
+
 test('Every scored theory question has one valid answer, unique options and a source page',()=>{
   const all=[...THEORY_QUESTIONS,...SCHEDULING_QUESTIONS];
   assert.equal(new Set(all.map(q=>q.id)).size,all.length);
