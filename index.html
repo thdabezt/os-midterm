@@ -7,8 +7,8 @@
   <meta name="description" content="Ôn thi giữa kỳ Nguyên lý hệ điều hành: trắc nghiệm lý thuyết tiếng Việt, bài tập CPU Scheduling, lời giải và đề luyện tập.">
   <title>OS Studyroom · Ôn tập giữa kỳ</title>
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
-  <link rel="stylesheet" href="./styles.css?v=1.0.1">
-  <script type="module" src="./app.js?v=1.0.1"></script>
+  <link rel="stylesheet" href="./styles.css?v=1.1.0">
+  <script type="module" src="./app.js?v=1.1.0"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Đến nội dung</a>
@@ -17,6 +17,7 @@
     <div class="side-label">KHÔNG GIAN ÔN TẬP</div>
     <nav aria-label="Điều hướng chính">
       <a href="#home" data-nav="home"><span class="nav-icon">◫</span>Tổng quan</a>
+      <a href="#summaries" data-nav="summaries"><span class="nav-icon">≡</span>Tóm tắt lý thuyết</a>
       <a href="#theory" data-nav="theory"><span class="nav-icon">▤</span>Trắc nghiệm lý thuyết</a>
       <a href="#calculation" data-nav="calculation"><span class="nav-icon">⌗</span>Bài tập tính toán</a>
       <a href="#exam" data-nav="exam"><span class="nav-icon">◷</span>Đề luyện tổng hợp</a>
@@ -26,7 +27,7 @@
     <div class="sidebar-bottom"><span class="live-dot"></span> Mỗi câu một chút tiến bộ.<p>Tiến độ được lưu trên trình duyệt này.</p><a href="https://github.com/thdabezt/os-midterm" target="_blank" rel="noopener">Xem trên GitHub ↗</a></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span class="breadcrumb">HỌC KỲ I <span>/</span> 2026–2027</span><span class="exam-date"><span class="live-dot"></span> Giữa kỳ · 20.10.2026 · 10:30</span></header>
+    <header class="topbar"><span class="breadcrumb">HỌC KỲ I <span>/</span> 2026–2027</span><div class="topbar-tools"><span class="exam-date"><span class="live-dot"></span> Giữa kỳ · 20.10.2026 · 10:30</span><button id="language-switch" class="language-switch" type="button" data-no-translate aria-pressed="false" aria-label="Xem tiếng Anh. Chạm để bật/tắt, hoặc nhấn giữ để xem tạm."><span class="language-desktop">⇧ English</span><span class="language-mobile">EN</span><span class="language-mobile-hint">Giữ / chạm</span></button></div></header>
     <main id="main" tabindex="-1"></main>
     <footer><span>OS STUDYROOM</span><span>Ôn tập đến hết CPU Scheduling · Dành cho việc luyện tập trước kỳ thi</span></footer>
   </div>

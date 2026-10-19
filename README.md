@@ -15,6 +15,10 @@ A Vietnamese practice website for the Operating Systems midterm, covering the cu
 - Six earlier-topic numeric exercises: Amdahl, fork/wait, circular buffers, and a specified race-condition interleaving.
 - Mixed practice exams: 20 theory questions and two calculation exercises, with a user-selected 30/45/60-minute timer. These durations are practice settings; the announcement did not state the official exam duration.
 - Browser-local progress, bookmarks, mistake review, saved sessions, exam history, and a progress JSON export.
+- **Lesson summaries** for all five current lectures: 35 sections with essential concepts, comparisons, formulas, common pitfalls, and slide references.
+- **English preview throughout the page:** hold **Shift** on desktop and release it to return to Vietnamese. On mobile, press and hold the floating **EN** button for a temporary preview, or tap it to toggle English on/off. It stays accessible while scrolling.
+
+English covers prompts, options, correct answers, explanations, calculation statements/solutions, lesson summaries, and the interface. Translation changes text in place, preserving typed answers, selected options, open sections and the running exam timer. Losing focus clears temporary holds; a manually toggled English view stays on across navigation. Reloading starts in Vietnamese. Original source filenames remain unchanged.
 
 ## Source policy
 

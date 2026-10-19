@@ -6,6 +6,8 @@ import { THEORY_QUESTIONS } from '../data/theory.js';
 import { SCHEDULING_QUESTIONS, CALCULATION_PRESETS } from '../data/scheduling.js';
 import { schedule, generateExercise } from '../scheduler.js';
 import { TOPICS, ALGORITHMS, NUMERIC_EXERCISES, numericCorrect, formatNumber, shuffle } from '../practice.js';
+import { LESSONS } from '../data/lessons.js';
+import { registerTranslation, translateText } from '../i18n.js';
 
 const STORAGE_KEY = 'os-studyroom-v1';
 const INITIAL_NOW = Date.UTC(2026, 9, 19, 12);
@@ -69,7 +71,7 @@ function boot({ storage = new Map(), now = INITIAL_NOW, hash = '#home' } = {}) {
   const context = createContext({
     THEORY_QUESTIONS, SCHEDULING_QUESTIONS, CALCULATION_PRESETS,
     schedule, generateExercise, TOPICS, ALGORITHMS, NUMERIC_EXERCISES,
-    numericCorrect, fmt: formatNumber, shuffle,
+    numericCorrect, fmt: formatNumber, shuffle, LESSONS, registerTranslation, translateText, initLanguage() {},
     document, location, Date: ClockDate,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     window: { addEventListener() {}, scrollTo() {} },

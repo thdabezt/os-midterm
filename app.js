@@ -2,11 +2,14 @@ import { THEORY_QUESTIONS } from './data/theory.js';
 import { SCHEDULING_QUESTIONS, CALCULATION_PRESETS } from './data/scheduling.js';
 import { schedule, generateExercise } from './scheduler.js';
 import { TOPICS, ALGORITHMS, NUMERIC_EXERCISES, numericCorrect, formatNumber as fmt, shuffle } from './practice.js';
+import { LESSONS } from './data/lessons.js';
+import { initLanguage, registerTranslation, translateText } from './i18n.js?v=1.1.0';
 
 const bank = [...THEORY_QUESTIONS,...SCHEDULING_QUESTIONS];
 const $ = (selector) => document.querySelector(selector);
 const main = $('#main');
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const bi = (vi,en) => {registerTranslation(vi,en);return esc(vi);};
 const KEY = 'os-studyroom-v1';
 const fresh = () => ({answers:{},bookmarks:[],calc:{attempts:0,correct:0},exams:[],session:null});
 let state;
@@ -15,6 +18,7 @@ if (!state.answers || !Array.isArray(state.bookmarks) || !state.calc || !Array.i
 let session = state.session;
 if (session && (!Array.isArray(session.items) || !session.items.length || !Number.isInteger(session.index) || !['practice','exam'].includes(session.mode))) session=null;
 let selectedReview = 'wrong';
+let selectedLesson = 'intro';
 let timer;
 let dismissConfirm;
 function confirmAction(message) {
@@ -39,7 +43,7 @@ function toast(message) { const box=$('#toast');box.textContent=message;box.hidd
 function heading(kicker,title,description='') { return `<div class="page-heading"><div class="eyebrow">${kicker}</div><h1>${title}</h1>${description?`<p>${description}</p>`:''}</div>`; }
 function source(item) {
   const s=item.source;
-  return `<details class="source"><summary>Nguồn & đối chiếu</summary><p><strong>${item.origin==='actual'?'Câu hỏi học kỳ này':'Câu luyện tập biên soạn từ bài giảng'}</strong></p><p>${esc(s?.label||'Bài giảng hiện tại')} · trang ${esc(s?.page||'—')}</p><p class="source-path">${esc(s?.file||'')}</p>${item.evidence?`<p>Đối chiếu lời giải: ${esc(item.evidence.file)} · trang ${item.evidence.page}</p>`:''}<p>Đáp án được đối chiếu hoặc tính lại; không thay thế đáp án chính thức của giảng viên.</p></details>`;
+  return `<details class="source"><summary>Nguồn & đối chiếu</summary><p><strong>${item.origin==='actual'?'Câu hỏi học kỳ này':'Câu luyện tập biên soạn từ bài giảng'}</strong></p><p>${esc(s?.label||'Bài giảng hiện tại')} · trang ${esc(s?.page||'—')}</p><p class="source-path" data-no-translate>${esc(s?.file||'')}</p>${item.evidence?`<p>${bi(`Đối chiếu lời giải: ${item.evidence.file} · trang ${item.evidence.page}`,`Answer reference: ${item.evidence.file} · page ${item.evidence.page}`)}</p>`:''}<p>Đáp án được đối chiếu hoặc tính lại; không thay thế đáp án chính thức của giảng viên.</p></details>`;
 }
 function tag(item) {return `<span class="tag ${item.origin==='actual'?'tag-course':''}">${item.origin==='actual'?'QUIZ HỌC KỲ NÀY':'LUYỆN TẬP THÊM'}</span>`;}
 function stats() { const vals=Object.values(state.answers);return {done:vals.length,correct:vals.filter(x=>x.correct).length,wrong:vals.filter(x=>!x.correct).length}; }
@@ -47,10 +51,21 @@ function home() {
   const s=stats();
   main.innerHTML=`<section class="home-hero"><div><div class="eyebrow"><span class="mini-line"></span> SẴN SÀNG CHO GIỮA KỲ</div><h1>Hiểu nguyên lý.<br><span>Vững vàng làm bài.</span></h1><p>Từ những khái niệm đầu tiên đến lập lịch CPU.<br>Luyện đúng hai dạng bài, từng bước một.</p><a class="btn btn-dark" href="#theory">Bắt đầu ôn tập <span>↗</span></a></div><div class="hero-art" aria-hidden="true"><div class="art-title">YOUR NEXT PROCESS</div><div class="art-window"><div class="window-dots"><i></i><i></i><i></i><span>study.exe</span></div><div class="art-code"><span>01</span> understand()<br><span>02</span> practice()<br><span>03</span> <b>you.gotThis()</b><i class="cursor"></i></div><div class="art-timeline"><span>P₁</span><span>P₂</span><span>P₃</span><span>P₄</span></div><div class="art-caption">READY → RUNNING → CONFIDENT</div></div><span class="art-sticker">a little progress,<br>every process.</span></div></section>
   <div class="stat-strip"><div><strong>${bank.length}</strong><span>Câu hỏi lý thuyết</span></div><div><strong>6<span> thuật toán</span></strong><span>Bài tập CPU Scheduling</span></div><div><strong>${s.done}<span> / ${bank.length}</span></strong><span>Câu đã luyện</span></div><div><strong>${s.done?Math.round(s.correct/s.done*100):0}<span>%</span></strong><span>Đúng ở lần gần nhất</span></div></div>
+  <a class="summary-cta" href="#summaries"><span class="summary-cta-icon">≡</span><div><h2>Đọc tóm tắt trước khi luyện</h2><p>Ôn ý chính, so sánh các khái niệm và ghi nhớ công thức của từng bài.</p></div><span>Mở tóm tắt →</span></a>
   <div class="section-title"><h2>Hôm nay, mình luyện gì?</h2><span>CHỌN MỘT ĐIỂM BẮT ĐẦU</span></div>
   <div class="mode-grid"><a class="mode-card" href="#theory"><div class="mode-top"><span class="mode-number">01 / LÝ THUYẾT</span><span class="card-icon">▤</span></div><h2>Chọn đáp án.<br>Hiểu vì sao.</h2><p>Trắc nghiệm tiếng Việt theo từng chương, có giải thích và dẫn nguồn bài giảng.</p><div class="card-bottom"><span>${bank.length} CÂU · 5 CHỦ ĐỀ</span><b>↗</b></div></a><a class="mode-card calc-card" href="#calculation"><div class="mode-top"><span class="mode-number">02 / TÍNH TOÁN</span><span class="card-icon">⌗</span></div><h2>Tự tính trước.<br>Xem lời giải sau.</h2><p>Điền kết quả lập lịch, kiểm tra từng đáp án và đối chiếu biểu đồ Gantt.</p><div class="card-bottom"><span>ĐỀ QUIZ THẬT + BÀI SINH MỚI</span><b>↗</b></div></a></div>
   <div class="section-title"><h2>Bản đồ kiến thức</h2><a href="#resources">Xem phạm vi ↗</a></div><div class="topic-list">${Object.entries(TOPICS).map(([id,name],i)=>{const qs=bank.filter(q=>q.topic===id),done=qs.filter(q=>state.answers[q.id]?.correct).length;return `<a href="#theory" class="topic-row" data-topic-link="${id}"><span class="topic-no">0${i+1}</span><strong>${name}</strong><span class="topic-progress"><span style="width:${qs.length?done/qs.length*100:0}%"></span></span><span>${done} / ${qs.length}</span><b>↗</b></a>`;}).join('')}</div>
   <div class="exam-note"><span class="note-symbol">i</span><p><strong>Thi ngày 20/10/2026, bắt đầu lúc 10:30.</strong><br>Trắc nghiệm lý thuyết và điền đáp án tính toán. Mang bút, máy tính cầm tay; không sử dụng tài liệu trong kỳ thi.</p><a href="#exam">Luyện đề tổng hợp →</a></div>`;
+}
+function summaries() {
+  const lesson=LESSONS.find(item=>item.id===selectedLesson)||LESSONS[0];
+  main.innerHTML=heading('TÓM TẮT / 5 BÀI HỌC','Nắm ý chính. Kết nối kiến thức.','Tóm tắt năm bài giảng hiện tại, từ tổng quan đến CPU Scheduling. Mỗi bài có ý chính, công thức và những chỗ dễ nhầm.')+`
+  <div class="lesson-tabs" role="group" aria-label="Chọn bài học">${LESSONS.map(item=>`<button class="lesson-tab ${item.id===lesson.id?'active':''}" data-action="select-lesson" data-id="${item.id}" aria-pressed="${item.id===lesson.id}" aria-controls="lesson-content"><span>${item.number}</span><strong>${esc(item.title.vi)}</strong></button>`).join('')}</div>
+  <article class="lesson-content" id="lesson-content"><header class="lesson-header"><div><span class="eyebrow">${esc(lesson.source.label)}</span><h2>${esc(lesson.title.vi)}</h2><p>${esc(lesson.intro.vi)}</p></div><a class="btn btn-dark" href="#theory" data-topic-link="${lesson.id}">Luyện câu hỏi của bài này →</a></header>
+  <div class="lesson-sections">${lesson.sections.map((section,i)=>`<section class="panel lesson-section"><div class="lesson-section-top"><span>${String(i+1).padStart(2,'0')}</span><h3>${esc(section.title.vi)}</h3></div><ul>${section.points.map(point=>`<li>${esc(point.vi)}</li>`).join('')}</ul><div class="lesson-reference">${bi(`${lesson.source.label} · trang ${section.sourcePages.join(', ')}`,`${lesson.source.label} · pages ${section.sourcePages.join(', ')}`)}</div></section>`).join('')}</div>
+  ${lesson.formulas.length?`<section class="lesson-formulas panel"><div class="eyebrow">CÔNG THỨC CẦN NHỚ</div>${lesson.formulas.map(formula=>`<div class="formula-item"><code>${esc(formula.formula)}</code><p>${esc(formula.meaning.vi)}</p></div>`).join('')}</section>`:''}
+  <section class="lesson-pitfalls"><div class="eyebrow">NHỮNG CHỖ DỄ NHẦM</div><ul>${lesson.pitfalls.map(point=>`<li>${esc(point.vi)}</li>`).join('')}</ul></section>
+  <details class="source"><summary>Đối chiếu bài giảng</summary><p class="source-path" data-no-translate>${esc(lesson.source.file)}</p><p>Giữ Shift để xem tiếng Anh. Trên điện thoại: chạm EN để bật/tắt, hoặc nhấn giữ để xem tạm.</p></details></article>`;
 }
 function theory(topic='all') {
   main.innerHTML=heading('01 / TRẮC NGHIỆM','Hiểu chắc từng khái niệm.','Chọn chủ đề, tự trả lời rồi đọc lời giải. Những câu làm sai sẽ vào sổ tay ôn tập.')+`
@@ -143,13 +158,21 @@ function renderTheoryQuestion(item,q,show) {
 }
 function renderCalculationQuestion(item,show) {
   const e=item.exercise;
-  return `<h1 class="question-prompt">${esc(e.title)}</h1><p class="calc-description">${esc(e.description)}</p>${e.processes?`<div class="table-scroll"><table class="process-table"><caption>Bảng dữ liệu tiến trình · ${esc(ALGORITHMS[e.options.algorithm])}${e.options.algorithm==='rr'?` · quantum = ${e.options.quantum}`:''}</caption><thead><tr><th>Tiến trình</th><th>Đến (AT)</th><th>CPU burst (BT)</th><th>Ưu tiên</th></tr></thead><tbody>${e.processes.map(p=>`<tr><th>${esc(p.id)}</th><td>${p.arrival}</td><td>${p.burst}</td><td>${p.priority??0}</td></tr>`).join('')}</tbody></table></div><details class="conventions" open><summary>Quy ước của bài này</summary><p>CPU đơn, không có I/O, không tính chuyển ngữ cảnh. ${e.options.algorithm.startsWith('priority')?`Số ưu tiên ${e.options.priorityOrder==='higher'?'lớn':'nhỏ'} hơn là ưu tiên cao hơn. `:''}Hòa: đến trước, rồi thứ tự trong bảng. SRTF/ưu tiên chỉ ngắt khi có tiến trình tốt hơn hẳn. ${e.options.algorithm==='rr'?e.options.rrBoundary==='requeue-first'?'RR: tiến trình vừa hết quantum được xếp lại trước các tiến trình đến đúng thời điểm đó (quy ước quiz học kỳ này).':'RR: tiến trình đến đúng cuối quantum vào hàng đợi trước tiến trình vừa hết lượt.':''} RT = lần chạy đầu − AT.</p></details>`:''}
+  return `<h1 class="question-prompt">${esc(e.title)}</h1><p class="calc-description">${esc(e.description)}</p>${e.processes?`<div class="table-scroll"><table class="process-table"><caption>${bi(`Bảng dữ liệu tiến trình · ${ALGORITHMS[e.options.algorithm]}${e.options.algorithm==='rr'?` · quantum = ${e.options.quantum}`:''}`,`Process data · ${translateText(ALGORITHMS[e.options.algorithm])}${e.options.algorithm==='rr'?` · quantum = ${e.options.quantum}`:''}`)}</caption><thead><tr><th>Tiến trình</th><th>Đến (AT)</th><th>CPU burst (BT)</th><th>Ưu tiên</th></tr></thead><tbody>${e.processes.map(p=>`<tr><th>${esc(p.id)}</th><td>${p.arrival}</td><td>${p.burst}</td><td>${p.priority??0}</td></tr>`).join('')}</tbody></table></div><details class="conventions" open><summary>Quy ước của bài này</summary><p>${renderConventions(e.options)}</p></details>`:''}
   <div class="answer-label"><h3>Điền kết quả của bạn</h3><span>Đơn vị thời gian theo đề · làm tròn ≥ 2 chữ số</span></div><div class="numeric-fields">${item.fields.map(f=>`<label>${esc(f.label)}<div class="numeric-input-wrap"><input type="text" inputmode="decimal" autocomplete="off" data-field="${esc(f.key)}" aria-label="${esc(f.label)}" value="${esc(item.values[f.key]??'')}" placeholder="Nhập số..." ${show?'readonly':''} class="${show?numericCorrect(item.values[f.key],f.answer)?'input-correct':'input-wrong':''}">${show?`<span>${numericCorrect(item.values[f.key],f.answer)?'✓':'→ '+fmt(f.answer)}</span>`:''}</div></label>`).join('')}</div>`;
+}
+function renderConventions(options) {
+  const priority=options.algorithm.startsWith('priority');
+  const vi=`CPU đơn, không có I/O, không tính chuyển ngữ cảnh. ${priority?`Số ưu tiên ${options.priorityOrder==='higher'?'lớn':'nhỏ'} hơn là ưu tiên cao hơn. `:''}Hòa: đến trước, rồi thứ tự trong bảng. SRTF/ưu tiên chỉ ngắt khi có tiến trình tốt hơn hẳn. ${options.algorithm==='rr'?options.rrBoundary==='requeue-first'?'RR: tiến trình vừa hết quantum được xếp lại trước các tiến trình đến đúng thời điểm đó (quy ước quiz học kỳ này).':'RR: tiến trình đến đúng cuối quantum vào hàng đợi trước tiến trình vừa hết lượt.':''} RT = lần chạy đầu − AT.`;
+  const en=`One CPU, no I/O or context-switch costs. ${priority?`${options.priorityOrder==='higher'?'Higher':'Lower'} priority numbers mean higher priority. `:''}Ties: earlier arrival, then table order. SRTF/preemptive priority only preempts for a strictly better process. ${options.algorithm==='rr'?options.rrBoundary==='requeue-first'?'RR: requeue the expired process before processes arriving at that exact instant (this semester’s quiz convention).':'RR: processes arriving exactly at the end of a quantum enter the queue before the expired process is requeued.':''} RT = first start − AT.`;
+  return bi(vi,en);
 }
 function renderCalculationSolution(item) {
   if(!item.result)return `<p>${esc(item.exercise.explanation)}</p>`;
   const r=item.result;
-  return `<h3>Biểu đồ Gantt</h3><div class="gantt-scroll"><div class="gantt" style="min-width:${Math.max(380,r.segments.length*52)}px">${r.segments.map((s,i)=>`<div class="gantt-block ${s.id==='idle'?'idle':''}" style="flex:${s.end-s.start};--hue:${s.id==='idle'?0:(Number(s.id.replace(/\D/g,''))||i)*47%360}"><b>${s.id==='idle'?'Rỗi':esc(s.id)}</b><span>${s.start}</span>${i===r.segments.length-1?`<em>${s.end}</em>`:''}</div>`).join('')}</div></div><p class="formula-line">TAT = CT − AT · WT = TAT − BT · RT = lần chạy đầu − AT</p><div class="table-scroll"><table class="solution-table"><thead><tr><th>Tiến trình</th><th>Chạy đầu</th><th>CT</th><th>TAT</th><th>WT</th><th>RT</th></tr></thead><tbody>${r.metrics.map(m=>`<tr><th>${esc(m.id)}</th><td>${m.start}</td><td>${m.completion}</td><td>${m.turnaround}</td><td>${m.waiting}</td><td>${m.response}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="3">Trung bình</th><td>${fmt(r.averages.turnaround)}</td><td>${fmt(r.averages.waiting)}</td><td>${fmt(r.averages.response)}</td></tr></tfoot></table></div><p>Tính từng dòng từ Gantt, cộng từng cột và chia cho ${r.metrics.length} tiến trình. Ví dụ ${esc(r.metrics[0].id)}: TAT = ${r.metrics[0].completion} − ${r.metrics[0].arrival} = ${r.metrics[0].turnaround}; WT = ${r.metrics[0].turnaround} − ${r.metrics[0].burst} = ${r.metrics[0].waiting}; RT = ${r.metrics[0].start} − ${r.metrics[0].arrival} = ${r.metrics[0].response}.</p>`;
+  const m=r.metrics[0];
+  const example=bi(`Tính từng dòng từ Gantt, cộng từng cột và chia cho ${r.metrics.length} tiến trình. Ví dụ ${m.id}: TAT = ${m.completion} − ${m.arrival} = ${m.turnaround}; WT = ${m.turnaround} − ${m.burst} = ${m.waiting}; RT = ${m.start} − ${m.arrival} = ${m.response}.`,`Read each row from the Gantt chart, sum each column and divide by ${r.metrics.length} processes. For ${m.id}: TAT = ${m.completion} − ${m.arrival} = ${m.turnaround}; WT = ${m.turnaround} − ${m.burst} = ${m.waiting}; RT = ${m.start} − ${m.arrival} = ${m.response}.`);
+  return `<h3>Biểu đồ Gantt</h3><div class="gantt-scroll"><div class="gantt" style="min-width:${Math.max(380,r.segments.length*52)}px">${r.segments.map((s,i)=>`<div class="gantt-block ${s.id==='idle'?'idle':''}" style="flex:${s.end-s.start};--hue:${s.id==='idle'?0:(Number(s.id.replace(/\D/g,''))||i)*47%360}"><b>${s.id==='idle'?'Rỗi':esc(s.id)}</b><span>${s.start}</span>${i===r.segments.length-1?`<em>${s.end}</em>`:''}</div>`).join('')}</div></div><p class="formula-line">TAT = CT − AT · WT = TAT − BT · RT = lần chạy đầu − AT</p><div class="table-scroll"><table class="solution-table"><thead><tr><th>Tiến trình</th><th>Chạy đầu</th><th>CT</th><th>TAT</th><th>WT</th><th>RT</th></tr></thead><tbody>${r.metrics.map(m=>`<tr><th>${esc(m.id)}</th><td>${m.start}</td><td>${m.completion}</td><td>${m.turnaround}</td><td>${m.waiting}</td><td>${m.response}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="3">Trung bình</th><td>${fmt(r.averages.turnaround)}</td><td>${fmt(r.averages.waiting)}</td><td>${fmt(r.averages.response)}</td></tr></tfoot></table></div><p>${example}</p>`;
 }
 function tick() {
   if(!session||session.mode!=='exam'||session.finished)return;
@@ -160,7 +183,7 @@ function tick() {
 function render() {
   const route=location.hash.slice(1)||'home';
   document.querySelectorAll('[data-nav]').forEach(el=>el.classList.toggle('active',el.dataset.nav===route));
-  if(route==='session')renderSession();else if(route==='theory')theory();else if(route==='calculation')calculation();else if(route==='exam')examSetup();else if(route==='review')review();else if(route==='resources')resources();else home();
+  if(route==='session')renderSession();else if(route==='summaries')summaries();else if(route==='theory')theory();else if(route==='calculation')calculation();else if(route==='exam')examSetup();else if(route==='review')review();else if(route==='resources')resources();else home();
   $('#review-count').textContent=stats().wrong;
 }
 main.addEventListener('input',event=>{if(event.target.dataset.field&&session){session.items[session.index].values[event.target.dataset.field]=event.target.value;save();}});
@@ -172,7 +195,8 @@ main.addEventListener('click',async event=>{
   if(link){event.preventDefault();location.hash='theory';setTimeout(()=>theory(link.dataset.topicLink),0);return;}
   const button=event.target.closest('[data-action]');if(!button)return;
   const action=button.dataset.action;
-  if(action==='start-theory'){
+  if(action==='select-lesson'){selectedLesson=button.dataset.id;summaries();}
+  else if(action==='start-theory'){
     const topic=$('#theory-topic').value,origin=$('#theory-origin').value,filter=$('#theory-filter').value;
     let qs=bank.filter(q=>(topic==='all'||q.topic===topic)&&(origin==='all'||q.origin===origin)&&(filter==='all'||filter==='new'&&!state.answers[q.id]||filter==='wrong'&&state.answers[q.id]&&!state.answers[q.id].correct||filter==='bookmarked'&&state.bookmarks.includes(q.id)));
     qs=shuffle(qs);const count=$('#theory-count').value;begin((count==='all'?qs:qs.slice(0,Number(count))).map(theoryItem));
@@ -210,3 +234,4 @@ document.addEventListener('keydown',event=>{
 window.addEventListener('hashchange',()=>{render();window.scrollTo(0,0);});
 setInterval(tick,1000);
 render();
+initLanguage();
