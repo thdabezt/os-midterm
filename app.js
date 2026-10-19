@@ -16,6 +16,20 @@ let session = state.session;
 if (session && (!Array.isArray(session.items) || !session.items.length || !Number.isInteger(session.index) || !['practice','exam'].includes(session.mode))) session=null;
 let selectedReview = 'wrong';
 let timer;
+let dismissConfirm;
+function confirmAction(message) {
+  return new Promise(resolve=>{
+    if(dismissConfirm)dismissConfirm(false);
+    const modal=document.createElement('dialog');
+    modal.className='confirm-modal';
+    modal.innerHTML=`<h2>Xác nhận lựa chọn</h2><p>${esc(message)}</p><div class="button-row"><button class="btn btn-outline" data-confirm="no">Quay lại</button><button class="btn btn-dark" data-confirm="yes">Tiếp tục</button></div>`;
+    const done=value=>{modal.close();modal.remove();dismissConfirm=null;resolve(value);};
+    dismissConfirm=done;
+    modal.addEventListener('cancel',event=>{event.preventDefault();done(false);});
+    modal.addEventListener('click',event=>{const answer=event.target.closest('[data-confirm]');if(answer)done(answer.dataset.confirm==='yes');});
+    document.body.append(modal);modal.showModal();
+  });
+}
 function save() {
   state.session=session;
   try { localStorage.setItem(KEY,JSON.stringify(state)); } catch { toast('Trình duyệt không thể lưu tiến độ. Bạn vẫn có thể làm bài.'); }
@@ -75,9 +89,9 @@ function randomPreset(algorithm) {
   return {id:'random',title:`${ALGORITHMS[algorithm]} · Bài luyện mới`,description:'Tính các đại lượng được yêu cầu cho bảng tiến trình dưới đây. Mỗi tiến trình chỉ có một CPU burst, không có I/O.',processes:generated.processes,options:generated.options,origin:'practice',source:{label:'Bài sinh từ quy tắc Lecture-05',file:'OS/Current Progress/Lecture-05-CPUScheduling.pdf',page:10}};
 }
 function numericItem(exercise) {return {id:exercise.id,kind:'calculation',exercise,fields:exercise.fields,values:{},checked:false};}
-function begin(items,mode='practice',minutes=30) {
+async function begin(items,mode='practice',minutes=30) {
   if(!items.length) {toast('Không có câu phù hợp với bộ lọc. Hãy đổi lựa chọn.');return;}
-  if(session&&!session.finished&&!window.confirm('Bắt đầu phiên mới sẽ thay thế phiên đang làm. Tiếp tục?')) return;
+  if(session&&!session.finished&&!await confirmAction('Bắt đầu phiên mới sẽ thay thế phiên đang làm. Các kết quả đã chấm vẫn được giữ trong sổ tay.')) return;
   session={mode,items,index:0,finished:false,expiresAt:mode==='exam'?Date.now()+minutes*60000:null,startedAt:Date.now()};
   save();location.hash='session';render();
 }
@@ -96,9 +110,12 @@ function checkCurrent() {
   if(!isAnswered(item)) {toast('Bạn hãy trả lời đầy đủ trước khi kiểm tra.');return;}
   item.checked=true;record(item);save();renderSession();
 }
-function finishExam(expired=false) {
+async function finishExam(expired=false) {
   if(!session||session.finished)return;
-  if(!expired&&!window.confirm(`Bạn đã trả lời đầy đủ ${session.items.filter(isAnswered).length}/${session.items.length} câu/bài. Nộp đề và xem kết quả?`))return;
+  const target=session;
+  if(!expired&&!await confirmAction(`Bạn đã trả lời đầy đủ ${session.items.filter(isAnswered).length}/${session.items.length} câu/bài. Nộp đề và xem kết quả?`))return;
+  if(session!==target||session.finished)return;
+  if(expired&&dismissConfirm)dismissConfirm(false);
   session.items.forEach(item=>{item.checked=true;record(item);});session.finished=true;
   session.score=Number(session.items.reduce((sum,item)=>sum+itemScore(item),0).toFixed(2));
   state.exams.push({date:Date.now(),score:session.score,total:session.items.length});save();
@@ -150,7 +167,7 @@ main.addEventListener('input',event=>{if(event.target.dataset.field&&session){se
 main.addEventListener('change',event=>{
   if(event.target.id==='calc-preset')$('#calc-algorithm').disabled=event.target.value!=='random';
 });
-main.addEventListener('click',event=>{
+main.addEventListener('click',async event=>{
   const link=event.target.closest('[data-topic-link]');
   if(link){event.preventDefault();location.hash='theory';setTimeout(()=>theory(link.dataset.topicLink),0);return;}
   const button=event.target.closest('[data-action]');if(!button)return;
@@ -182,7 +199,7 @@ main.addEventListener('click',event=>{
   else if(action==='review-one')begin([theoryItem(bank.find(q=>q.id===button.dataset.id))]);
   else if(action==='export-progress'){
     const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='os-studyroom-progress.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }else if(action==='reset'&&window.confirm('Xóa toàn bộ câu đã làm, đánh dấu và phiên đang lưu trên trình duyệt này?')){state=fresh();session=null;save();render();toast('Đã xóa tiến độ trên trình duyệt này.');}
+  }else if(action==='reset'&&await confirmAction('Xóa toàn bộ câu đã làm, đánh dấu và phiên đang lưu trên trình duyệt này?')){state=fresh();session=null;save();render();toast('Đã xóa tiến độ trên trình duyệt này.');}
 });
 document.addEventListener('keydown',event=>{
   if(location.hash!=='#session'||!session||event.ctrlKey||event.metaKey||event.altKey||['INPUT','SELECT','TEXTAREA','BUTTON','A','SUMMARY'].includes(event.target.tagName))return;
