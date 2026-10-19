@@ -5,7 +5,7 @@ import { THEORY_EN } from './data/theory.en.js?v=1.1.1';
 import { SCHEDULING_EN, PRESETS_EN } from './data/scheduling.en.js';
 import { NUMERIC_EN } from './data/numeric.en.js';
 import { LESSONS } from './data/lessons.js';
-import { UI_EN } from './data/ui.en.js';
+import { UI_EN } from './data/ui.en.js?v=1.2.0';
 
 const dictionary = new Map(Object.entries(UI_EN));
 export function registerTranslation(vi,en) { if(vi&&en)dictionary.set(vi.trim(),en.trim()); }

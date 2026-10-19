@@ -3,7 +3,8 @@ import { SCHEDULING_QUESTIONS, CALCULATION_PRESETS } from './data/scheduling.js'
 import { schedule, generateExercise } from './scheduler.js';
 import { TOPICS, ALGORITHMS, NUMERIC_EXERCISES, numericCorrect, formatNumber as fmt, shuffle } from './practice.js';
 import { LESSONS } from './data/lessons.js';
-import { initLanguage, registerTranslation, translateText } from './i18n.js?v=1.1.1';
+import { initLanguage, registerTranslation, translateText } from './i18n.js?v=1.2.0';
+import { analyzeDraft, MAX_DRAFT_SEGMENTS } from './gantt-draft.js?v=1.2.0';
 
 const bank = [...THEORY_QUESTIONS,...SCHEDULING_QUESTIONS];
 const $ = (selector) => document.querySelector(selector);
@@ -97,7 +98,7 @@ function createScheduleItem(preset,full=false) {
   const result=schedule(preset.processes,preset.options);
   const fields=[{key:'avg-waiting',label:'WT trung bình',answer:result.averages.waiting},{key:'avg-turnaround',label:'TAT trung bình',answer:result.averages.turnaround},{key:'avg-response',label:'RT trung bình',answer:result.averages.response}];
   if(full) for(const m of result.metrics) for(const [key,label] of [['completion','CT'],['waiting','WT'],['turnaround','TAT'],['response','RT']]) fields.push({key:`${m.id}-${key}`,label:`${m.id} · ${label}`,answer:m[key]});
-  return {id:`calc-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,kind:'calculation',exercise:preset,result,fields,values:{},checked:false};
+  return {id:`calc-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,kind:'calculation',exercise:preset,result,fields,values:{},checked:false,ganttDraft:newGanttDraft()};
 }
 function randomPreset(algorithm) {
   const generated=generateExercise(Math.floor(Math.random()*2147483647),algorithm);
@@ -150,7 +151,7 @@ function renderSession() {
   ${isTheory?renderTheoryQuestion(item,q,show):renderCalculationQuestion(item,show)}
   ${show?`<div class="feedback ${itemScore(item)===1?'correct':'incorrect'}" role="status"><strong>${itemScore(item)===1?'✓ Chính xác. Bạn đã hiểu bài!':itemScore(item)>0?`Đúng ${Math.round(itemScore(item)*100)}% số ô. Cùng kiểm tra lại.`:'Cùng xem lại một chút.'}</strong>${isTheory?`<p>Đáp án đúng: <b>${String.fromCharCode(65+q.answer)}. ${esc(q.options[q.answer])}</b></p><p>${esc(q.explanation)}</p>`:renderCalculationSolution(item)}</div>${source(isTheory?q:item.exercise)}`:''}
   <div class="question-controls"><button class="btn btn-outline" data-action="previous" ${session.index===0?'disabled':''}>← Trước</button><div>${!isExam&&!show?'<button class="btn btn-dark" data-action="check">Kiểm tra đáp án →</button>':''}${session.index<session.items.length-1?'<button class="btn '+(show||isExam?'btn-dark':'btn-outline')+'" data-action="next">Câu tiếp →</button>':isExam&&!session.finished?'<button class="btn btn-dark" data-action="submit-exam">Nộp đề ✓</button>':!isExam&&show?'<button class="btn btn-dark" data-action="complete-practice">Hoàn thành ✓</button>':''}</div></div></section>
-  <aside class="session-side"><div class="panel question-map"><span class="eyebrow">${isExam?'BÀI LÀM CỦA BẠN':'TIẾN ĐỘ PHIÊN'}</span><div class="question-dots">${session.items.map((it,i)=>`<button data-action="jump" data-index="${i}" aria-label="Đến câu ${i+1}" ${i===session.index?'aria-current="step"':''} class="${i===session.index?'current':''} ${it.checked&&(!isExam||session.finished)?itemScore(it)===1?'done-correct':'done-wrong':isAnswered(it)?'answered':''}">${i+1}</button>`).join('')}</div><p>${session.items.filter(isAnswered).length}/${session.items.length} câu đã điền đầy đủ</p>${isExam&&!session.finished?'<button class="btn btn-dark full-width" data-action="submit-exam">Nộp đề</button>':''}</div><div class="session-tip"><span class="eyebrow">MỘT CHÚT NHẮC NHỞ</span><p>${isTheory?'Đọc kỹ “đúng”, “sai”, “không phải”. Một từ có thể thay đổi cả đáp án.':'Viết biểu đồ Gantt ra giấy trước. WT = CT − AT − BT; RT chỉ tính đến lần chạy đầu tiên.'}</p><small>${isTheory?'Phím 1–4 chọn · Enter kiểm tra / tiếp':'Dùng dấu phẩy hoặc dấu chấm cho số thập phân.'}</small></div></aside></div>`;
+  <aside class="session-side"><div class="panel question-map"><span class="eyebrow">${isExam?'BÀI LÀM CỦA BẠN':'TIẾN ĐỘ PHIÊN'}</span><div class="question-dots">${session.items.map((it,i)=>`<button data-action="jump" data-index="${i}" aria-label="Đến câu ${i+1}" ${i===session.index?'aria-current="step"':''} class="${i===session.index?'current':''} ${it.checked&&(!isExam||session.finished)?itemScore(it)===1?'done-correct':'done-wrong':isAnswered(it)?'answered':''}">${i+1}</button>`).join('')}</div><p>${session.items.filter(isAnswered).length}/${session.items.length} câu đã điền đầy đủ</p>${isExam&&!session.finished?'<button class="btn btn-dark full-width" data-action="submit-exam">Nộp đề</button>':''}</div><div class="session-tip"><span class="eyebrow">MỘT CHÚT NHẮC NHỞ</span><p>${isTheory?'Đọc kỹ “đúng”, “sai”, “không phải”. Một từ có thể thay đổi cả đáp án.':'Phác thảo Gantt trước khi tính. WT = CT − AT − BT; RT chỉ tính đến lần chạy đầu tiên.'}</p><small>${isTheory?'Phím 1–4 chọn · Enter kiểm tra / tiếp':'Dùng dấu phẩy hoặc dấu chấm cho số thập phân.'}</small></div></aside></div>`;
   tick();
 }
 function renderTheoryQuestion(item,q,show) {
@@ -159,7 +160,27 @@ function renderTheoryQuestion(item,q,show) {
 function renderCalculationQuestion(item,show) {
   const e=item.exercise;
   return `<h1 class="question-prompt">${esc(e.title)}</h1><p class="calc-description">${esc(e.description)}</p>${e.processes?`<div class="table-scroll"><table class="process-table"><caption>${bi(`Bảng dữ liệu tiến trình · ${ALGORITHMS[e.options.algorithm]}${e.options.algorithm==='rr'?` · quantum = ${e.options.quantum}`:''}`,`Process data · ${translateText(ALGORITHMS[e.options.algorithm])}${e.options.algorithm==='rr'?` · quantum = ${e.options.quantum}`:''}`)}</caption><thead><tr><th>Tiến trình</th><th>Đến (AT)</th><th>CPU burst (BT)</th><th>Ưu tiên</th></tr></thead><tbody>${e.processes.map(p=>`<tr><th>${esc(p.id)}</th><td>${p.arrival}</td><td>${p.burst}</td><td>${p.priority??0}</td></tr>`).join('')}</tbody></table></div><details class="conventions" open><summary>Quy ước của bài này</summary><p>${renderConventions(e.options)}</p></details>`:''}
+  ${e.processes?renderGanttDraft(item):''}
   <div class="answer-label"><h3>Điền kết quả của bạn</h3><span>Đơn vị thời gian theo đề · làm tròn ≥ 2 chữ số</span></div><div class="numeric-fields">${item.fields.map(f=>`<label>${esc(f.label)}<div class="numeric-input-wrap"><input type="text" inputmode="decimal" autocomplete="off" data-field="${esc(f.key)}" aria-label="${esc(f.label)}" value="${esc(item.values[f.key]??'')}" placeholder="Nhập số..." ${show?'readonly':''} class="${show?numericCorrect(item.values[f.key],f.answer)?'input-correct':'input-wrong':''}">${show?`<span>${numericCorrect(item.values[f.key],f.answer)?'✓':'→ '+fmt(f.answer)}</span>`:''}</div></label>`).join('')}</div>`;
+}
+function newGanttDraft() {return {start:'0',rows:[{id:'',end:''}],open:true};}
+function draftFor(item) {return item.ganttDraft??=newGanttDraft();}
+function draftAnalysis(item) {return analyzeDraft(draftFor(item),item.exercise.processes.map(p=>p.id));}
+function renderDraftPreview(item,analysis=draftAnalysis(item)) {
+  const messages={start:['Mốc bắt đầu phải là số không âm.','The start time must be a nonnegative number.'],process:['Chọn tiến trình hoặc CPU rỗi.','Choose a process or CPU idle.'],end:['Nhập mốc kết thúc hợp lệ.','Enter a valid end time.'],order:['Mốc kết thúc phải lớn hơn mốc bắt đầu.','The end time must be later than the start time.'],limit:['Đã đạt giới hạn số đoạn nháp.','The draft segment limit has been reached.']};
+  const firstError=analysis.errors[0];
+  const status=firstError?bi(`${firstError.rowIndex>=0?`Đoạn ${firstError.rowIndex+1}: `:''}${messages[firstError.code][0]}`,`${firstError.rowIndex>=0?`Segment ${firstError.rowIndex+1}: `:''}${messages[firstError.code][1]}`):analysis.segments.length?bi('Bản nháp của bạn · chưa kiểm tra đúng/sai.','Your draft · correctness has not been checked.'):bi('Chọn tiến trình và nhập mốc kết thúc để vẽ đoạn đầu tiên.','Choose a process and enter its end time to draw the first segment.');
+  return `${analysis.segments.length?`<div class="gantt-scroll"><div class="gantt draft-gantt" role="img" aria-label="${bi('Biểu đồ Gantt nháp của bạn','Your draft Gantt chart')}" style="min-width:${Math.max(240,analysis.segments.length*56)}px">${analysis.segments.map((s,i)=>`<div class="gantt-block ${s.id==='idle'?'idle':''}" style="flex:${s.end-s.start};--hue:${s.id==='idle'?0:(Number(s.id.replace(/\D/g,''))||item.exercise.processes.findIndex(p=>p.id===s.id)+1)*47%360}"><b>${s.id==='idle'?bi('Rỗi','Idle'):esc(s.id)}</b><span>${s.start}</span>${i===analysis.segments.length-1?`<em>${s.end}</em>`:''}<span class="sr-only">${s.start} → ${s.end}</span></div>`).join('')}</div></div>`:''}<p class="draft-status ${firstError?'draft-error':''}" role="status">${status}</p>`;
+}
+function renderGanttDraft(item) {
+  const draft=draftFor(item),analysis=draftAnalysis(item);
+  return `<details class="gantt-draft" data-gantt-draft ${draft.open?'open':''}><summary><span>${bi('Phác thảo Gantt của bạn','Draft your Gantt schedule')}</span><span class="tag">${bi('NHÁP · TỰ LƯU','DRAFT · AUTOSAVED')}</span></summary><div class="draft-body"><p class="draft-help">${bi('Chọn tiến trình, nhập thời điểm kết thúc từng lượt chạy. Mốc bắt đầu của lượt sau nối tiếp lượt trước. Dùng “Rỗi” khi CPU chờ. Bản nháp không được chấm điểm.','Choose a process and enter the end time of each run. Each segment starts where the previous one ends. Use “Idle” while the CPU waits. This draft is not graded.')}</p><label class="draft-origin">${bi('Mốc bắt đầu','Start time')}<input type="text" inputmode="decimal" autocomplete="off" data-draft-field="start" value="${esc(draft.start)}" aria-invalid="${analysis.errors.some(error=>error.code==='start')}"></label><div class="draft-rows" role="group" aria-label="${bi('Các đoạn Gantt nháp','Draft Gantt segments')}">${draft.rows.map((row,index)=>`<div class="draft-row"><span class="draft-row-number">${index+1}</span><label>${bi('Tiến trình','Process')}<select data-draft-field="id" data-draft-row="${index}" aria-label="${bi(`Tiến trình đoạn ${index+1}`,`Process for segment ${index+1}`)}"><option value="">${bi('Chọn...','Choose...')}</option>${[...item.exercise.processes.map(p=>p.id),'idle'].map(id=>`<option value="${esc(id)}" ${row.id===id?'selected':''}>${id==='idle'?bi('Rỗi','Idle'):esc(id)}</option>`).join('')}</select></label><label class="draft-from">${bi('Từ','From')}<output data-draft-start="${index}">${analysis.starts[index]??'—'}</output></label><label>${bi('Đến','Until')}<input type="text" inputmode="decimal" autocomplete="off" data-draft-field="end" data-draft-row="${index}" aria-label="${bi(`Mốc kết thúc đoạn ${index+1}`,`End time for segment ${index+1}`)}" value="${esc(row.end)}" aria-invalid="${analysis.errors.some(error=>error.rowIndex===index&&['end','order'].includes(error.code))}"></label><button class="draft-remove" data-action="draft-remove" data-index="${index}" aria-label="${bi(`Xóa đoạn ${index+1}`,`Remove segment ${index+1}`)}">×</button></div>`).join('')}</div><div class="draft-actions"><button class="btn btn-outline" data-action="draft-add" ${draft.rows.length>=MAX_DRAFT_SEGMENTS?'disabled':''}>${bi('+ Thêm lượt chạy','+ Add segment')}</button><button class="text-btn" data-action="draft-clear">${bi('Xóa bản nháp','Clear draft')}</button></div><div id="gantt-draft-preview" class="draft-preview">${renderDraftPreview(item,analysis)}</div></div></details>`;
+}
+function refreshDraftPreview(item) {
+  const analysis=draftAnalysis(item);
+  $('#gantt-draft-preview').innerHTML=renderDraftPreview(item,analysis);
+  document.querySelectorAll('[data-draft-start]').forEach(output=>{output.textContent=analysis.starts[Number(output.dataset.draftStart)]??'—';});
+  document.querySelectorAll('[data-draft-field]').forEach(input=>{input.setAttribute('aria-invalid',String(analysis.errors.some(error=>input.dataset.draftField==='start'?error.code==='start':error.rowIndex===Number(input.dataset.draftRow)&&(input.dataset.draftField==='id'?error.code==='process':['end','order'].includes(error.code)))));});
 }
 function renderConventions(options) {
   const priority=options.algorithm.startsWith('priority');
@@ -186,7 +207,20 @@ function render() {
   if(route==='session')renderSession();else if(route==='summaries')summaries();else if(route==='theory')theory();else if(route==='calculation')calculation();else if(route==='exam')examSetup();else if(route==='review')review();else if(route==='resources')resources();else home();
   $('#review-count').textContent=stats().wrong;
 }
-main.addEventListener('input',event=>{if(event.target.dataset.field&&session){session.items[session.index].values[event.target.dataset.field]=event.target.value;save();}});
+main.addEventListener('input',event=>{
+  if(!session)return;
+  const item=session.items[session.index],target=event.target;
+  if(target.dataset.field){item.values[target.dataset.field]=target.value;save();}
+  if(target.dataset.draftField&&item.exercise?.processes) {
+    const draft=draftFor(item),field=target.dataset.draftField;
+    if(field==='start')draft.start=target.value;
+    else if(['id','end'].includes(field)&&draft.rows[Number(target.dataset.draftRow)])draft.rows[Number(target.dataset.draftRow)][field]=target.value;
+    save();refreshDraftPreview(item);
+  }
+});
+main.addEventListener('toggle',event=>{
+  if(event.target.dataset?.ganttDraft!==undefined&&event.target===$('.gantt-draft')&&session){draftFor(session.items[session.index]).open=event.target.open;save();}
+},true);
 main.addEventListener('change',event=>{
   if(event.target.id==='calc-preset')$('#calc-algorithm').disabled=event.target.value!=='random';
 });
@@ -195,7 +229,17 @@ main.addEventListener('click',async event=>{
   if(link){event.preventDefault();location.hash='theory';setTimeout(()=>theory(link.dataset.topicLink),0);return;}
   const button=event.target.closest('[data-action]');if(!button)return;
   const action=button.dataset.action;
-  if(action==='select-lesson'){selectedLesson=button.dataset.id;summaries();}
+  if(action.startsWith('draft-')&&session?.items[session.index].exercise?.processes) {
+    const item=session.items[session.index],draft=draftFor(item);
+    if(action==='draft-add'&&draft.rows.length<MAX_DRAFT_SEGMENTS)draft.rows.push({id:'',end:''});
+    else if(action==='draft-remove'){draft.rows.splice(Number(button.dataset.index),1);if(!draft.rows.length)draft.rows.push({id:'',end:''});}
+    else if(action==='draft-clear'){const target=session;if(!await confirmAction('Xóa toàn bộ bản nháp Gantt của bài này? Các đáp án số vẫn được giữ.'))return;if(session!==target||session.items[session.index]!==item)return;item.ganttDraft=newGanttDraft();}
+    draftFor(item).open=true;save();
+    const oldEditor=$('.gantt-draft');oldEditor.outerHTML=renderGanttDraft(item);
+    const focus=action==='draft-add'?`[data-draft-field="id"][data-draft-row="${draft.rows.length-1}"]`:'[data-draft-field="start"]';
+    $(focus)?.focus();
+  }
+  else if(action==='select-lesson'){selectedLesson=button.dataset.id;summaries();}
   else if(action==='start-theory'){
     const topic=$('#theory-topic').value,origin=$('#theory-origin').value,filter=$('#theory-filter').value;
     let qs=bank.filter(q=>(topic==='all'||q.topic===topic)&&(origin==='all'||q.origin===origin)&&(filter==='all'||filter==='new'&&!state.answers[q.id]||filter==='wrong'&&state.answers[q.id]&&!state.answers[q.id].correct||filter==='bookmarked'&&state.bookmarks.includes(q.id)));

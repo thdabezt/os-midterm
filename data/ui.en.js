@@ -174,7 +174,7 @@ export const UI_EN = {
   'TIẾN ĐỘ PHIÊN':'SESSION PROGRESS',
   'MỘT CHÚT NHẮC NHỞ':'A QUICK REMINDER',
   'Đọc kỹ “đúng”, “sai”, “không phải”. Một từ có thể thay đổi cả đáp án.':'Read “true”, “false” and “not” carefully. One word can change the answer.',
-  'Viết biểu đồ Gantt ra giấy trước. WT = CT − AT − BT; RT chỉ tính đến lần chạy đầu tiên.':'Draw the Gantt chart on paper first. WT = CT − AT − BT; RT only measures the delay until the first run.',
+  'Phác thảo Gantt trước khi tính. WT = CT − AT − BT; RT chỉ tính đến lần chạy đầu tiên.':'Draft the Gantt timeline before calculating. WT = CT − AT − BT; RT only measures the delay until the first run.',
   'Phím 1–4 chọn · Enter kiểm tra / tiếp':'1–4 to select · Enter to check / continue',
   'Dùng dấu phẩy hoặc dấu chấm cho số thập phân.':'Use a decimal comma or decimal point.',
   'Chọn đáp án':'Select an answer',
@@ -220,5 +220,6 @@ export const UI_EN = {
   'Ôn ý chính, so sánh các khái niệm và ghi nhớ công thức của từng bài.':'Review the essentials, compare concepts and remember each lesson’s formulas.',
   'Mở tóm tắt →':'Open summaries →',
   'Giữ Shift để xem tiếng Anh. Trên điện thoại: chạm EN để bật/tắt, hoặc nhấn giữ để xem tạm.':'Hold Shift to view English. On mobile: tap EN to toggle, or press and hold for a temporary view.',
-  'Ngôn ngữ hiển thị không thay đổi câu trả lời hay thời gian làm bài.':'Changing the display language does not change answers or the exam timer.'
+  'Ngôn ngữ hiển thị không thay đổi câu trả lời hay thời gian làm bài.':'Changing the display language does not change answers or the exam timer.',
+  'Xóa toàn bộ bản nháp Gantt của bài này? Các đáp án số vẫn được giữ.':'Clear this exercise’s entire Gantt draft? Your numeric answers will be kept.'
 };

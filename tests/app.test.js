@@ -8,6 +8,7 @@ import { schedule, generateExercise } from '../scheduler.js';
 import { TOPICS, ALGORITHMS, NUMERIC_EXERCISES, numericCorrect, formatNumber, shuffle } from '../practice.js';
 import { LESSONS } from '../data/lessons.js';
 import { registerTranslation, translateText } from '../i18n.js';
+import { analyzeDraft, MAX_DRAFT_SEGMENTS } from '../gantt-draft.js';
 
 const STORAGE_KEY = 'os-studyroom-v1';
 const INITIAL_NOW = Date.UTC(2026, 9, 19, 12);
@@ -36,7 +37,7 @@ function element(tag = 'div') {
     showModal() { this.open = true; },
     close() { this.open = false; },
     remove() { this.removed = true; },
-    scrollIntoView() {},
+    scrollIntoView() {},focus() {this.focused=true;},setAttribute(name,value) {this[name]=value;},
   };
 }
 
@@ -48,6 +49,8 @@ function boot({ storage = new Map(), now = INITIAL_NOW, hash = '#home' } = {}) {
   const reviewCount = element();
   const toast = element();
   const examTimer = element();
+  const draftPreview = element(),draftEditor=element('details'),draftInput=element('input');
+  draftEditor.dataset.ganttDraft='';
   const dialogs = [];
   const intervals = [];
   const document = {
@@ -57,6 +60,9 @@ function boot({ storage = new Map(), now = INITIAL_NOW, hash = '#home' } = {}) {
       if (selector === '#review-count') return reviewCount;
       if (selector === '#toast') return toast;
       if (selector === '#exam-timer') return main.innerHTML.includes('id="exam-timer"') ? examTimer : null;
+      if (selector === '#gantt-draft-preview') return draftPreview;
+      if (selector === '.gantt-draft') return draftEditor;
+      if (selector.startsWith('[data-draft-field=')) return draftInput;
       throw new Error(`Unexpected DOM query in lifecycle test: ${selector}`);
     },
     querySelectorAll() { return []; },
@@ -71,7 +77,7 @@ function boot({ storage = new Map(), now = INITIAL_NOW, hash = '#home' } = {}) {
   const context = createContext({
     THEORY_QUESTIONS, SCHEDULING_QUESTIONS, CALCULATION_PRESETS,
     schedule, generateExercise, TOPICS, ALGORITHMS, NUMERIC_EXERCISES,
-    numericCorrect, fmt: formatNumber, shuffle, LESSONS, registerTranslation, translateText, initLanguage() {},
+    numericCorrect, fmt: formatNumber, shuffle, LESSONS, analyzeDraft, MAX_DRAFT_SEGMENTS, registerTranslation, translateText, initLanguage() {},
     document, location, Date: ClockDate,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     window: { addEventListener() {}, scrollTo() {} },
@@ -85,7 +91,7 @@ function boot({ storage = new Map(), now = INITIAL_NOW, hash = '#home' } = {}) {
     for (const listener of target.listeners.get(type) ?? []) await listener(event);
   };
   return {
-    app: context.app, storage, location, main, reviewCount, toast, examTimer,
+    app: context.app, storage, location, main, reviewCount, toast, examTimer,draftPreview,draftEditor,
     advance(milliseconds) { currentTime += milliseconds; },
     runTimer() { for (const callback of intervals) callback(); },
     activeDialog() { return dialogs.findLast(dialog => dialog.open && !dialog.removed); },
@@ -111,9 +117,77 @@ function boot({ storage = new Map(), now = INITIAL_NOW, hash = '#home' } = {}) {
       return emit(main, 'click', { target: { closest: selector => selector === '[data-action]' ? button : null } });
     },
     input(field, value) { return emit(main, 'input', { target: { dataset: { field }, value } }); },
+    draftInput(draftField,value,draftRow='0') {return emit(main,'input',{target:{dataset:{draftField,draftRow},value}});},
+    toggleDraft(open) {draftEditor.open=open;return emit(main,'toggle',{target:draftEditor});},
     saved() { return JSON.parse(storage.get(STORAGE_KEY)); },
   };
 }
+
+test('Gantt draft edits, idle segments and collapse state survive navigation and reload without filling numeric answers',async()=>{
+  const view=boot();
+  const item=view.app.createScheduleItem(CALCULATION_PRESETS.find(p=>p.id==='actual8-fcfs'));
+  await view.app.begin([item,view.app.theoryItem(THEORY_QUESTIONS[0])]);
+  await view.input('avg-waiting','12,5');
+  await view.draftInput('id','P1');
+  await view.draftInput('end','7');
+  await view.click('draft-add');
+  await view.draftInput('id','P2','1');
+  await view.draftInput('end','5','1');
+  assert.equal(translateText('Đoạn 2: Mốc kết thúc phải lớn hơn mốc bắt đầu.'),'Segment 2: The end time must be later than the start time.');
+  await view.draftInput('end','11','1');
+  await view.click('draft-add');
+  await view.draftInput('id','idle','2');
+  await view.draftInput('end','12,5','2');
+  assert.match(view.draftPreview.innerHTML,/12.5/);
+  assert.match(view.draftPreview.innerHTML,/chưa kiểm tra đúng\/sai/);
+  assert.equal(translateText('Tiến trình đoạn 2'),'Process for segment 2');
+  assert.equal(translateText('Mốc kết thúc đoạn 2'),'End time for segment 2');
+  await view.toggleDraft(false);
+  const expected=view.saved().session.items[0].ganttDraft;
+  await view.click('next');
+  assert.doesNotMatch(view.main.innerHTML,/data-gantt-draft/,'theory questions do not get scheduling drafts');
+  await view.click('previous');
+  const resumed=boot({storage:view.storage,hash:'#session'});
+  assert.deepEqual(resumed.saved().session.items[0].ganttDraft,expected);
+  assert.equal(resumed.app.session.items[0].ganttDraft.open,false);
+  assert.equal(resumed.app.session.items[0].values['avg-waiting'],'12,5');
+  assert.equal(Object.keys(resumed.app.session.items[0].values).length,1);
+  resumed.app.checkCurrent();
+  assert.equal(resumed.app.session.items[0].checked,false,'a finished draft does not complete unanswered numeric fields');
+  assert.equal(resumed.app.state.calc.attempts,0);
+});
+
+test('draft row removal and confirmed clearing affect only the current exercise draft',async()=>{
+  const view=boot(),preset=CALCULATION_PRESETS.find(p=>p.id==='actual8-rr');
+  const first=view.app.createScheduleItem(preset),second=view.app.createScheduleItem(preset);
+  await view.app.begin([first,second]);
+  await view.input('avg-response','10,25');
+  await view.draftInput('id','P1');await view.draftInput('end','3');
+  await view.click('draft-add');await view.draftInput('id','P2','1');await view.draftInput('end','6','1');
+  await view.click('draft-remove',{index:'0'});
+  assert.deepEqual(JSON.parse(JSON.stringify(first.ganttDraft.rows)),[{id:'P2',end:'6'}]);
+  const cancel=view.click('draft-clear');await view.answerDialog(false);await cancel;
+  assert.equal(first.ganttDraft.rows[0].id,'P2');
+  const clear=view.click('draft-clear');await view.answerDialog(true);await clear;
+  assert.deepEqual(JSON.parse(JSON.stringify(first.ganttDraft)),{start:'0',rows:[{id:'',end:''}],open:true});
+  assert.equal(first.values['avg-response'],'10,25');
+  assert.equal(second.ganttDraft.rows[0].id,'');
+  await view.click('draft-remove',{index:'0'});
+  assert.equal(first.ganttDraft.rows.length,1,'an empty editor keeps one placeholder row');
+});
+
+test('exam draft edits preserve the deadline and remain ungraded when time expires',async()=>{
+  const view=boot(),item=view.app.createScheduleItem(CALCULATION_PRESETS[0]);
+  await view.app.begin([item],'exam',1);
+  const deadline=view.app.session.expiresAt;
+  await view.draftInput('id','P1');await view.draftInput('end','7');
+  assert.equal(view.app.session.expiresAt,deadline);
+  assert.doesNotMatch(view.main.innerHTML,/class="feedback /);
+  view.advance(61_000);view.runTimer();
+  assert.equal(view.app.session.finished,true);
+  assert.equal(view.app.session.score,0,'draft segments contribute no exam points');
+  assert.equal(view.saved().session.items[0].ganttDraft.rows[0].end,'7');
+});
 
 test('answer-key update removes only the obsolete result when its selected answer is unavailable', async () => {
   const unaffected={correct:true,attempts:3,date:INITIAL_NOW-2000};
